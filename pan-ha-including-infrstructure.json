@@ -1,0 +1,720 @@
+  {
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.13",
+    "parameters": {
+      "vmNamePrefix": {
+        "type": "string",
+        "defaultValue": "panfw",
+        "metadata": {
+          "description": "Name of VM-Series FW in the Azure portal."
+        }
+      },
+      "vmInstances": {
+        "type": "int",
+        "defaultValue": 2,
+        "minValue": 1,
+        "metadata": {
+          "description": "Number of firewall instances to deploy."
+        }
+      },
+      "vmSize": {
+        "type": "string",
+        "defaultValue": "Standard_D3_v2",
+        "allowedValues": [
+          "Standard_D3",
+          "Standard_D4",
+          "Standard_D3_v2",
+          "Standard_D4_v2",
+          "Standard_A4",
+          "Standard_DS3_v2",
+          "Standard_DS4_v2"
+        ],
+        "metadata": {
+          "description": "Azure VM size for VM-Series"
+        }
+      },
+      "vmImageVersion": {
+        "type": "string",
+        "defaultValue": "latest",
+        "allowedValues": [
+          "9.0.6",
+          "latest"
+        ],
+        "metadata": {
+          "description": "PAN OS Version | az vm image list -l westeurope -p paloaltonetworks --all"
+        }
+      },
+      "vmImageSku": {
+        "type": "string",
+        "defaultValue": "byol",
+        "allowedValues": [
+          "byol",
+          "bundle1",
+          "bundle2"
+        ],
+        "metadata": {
+          "description": "Firewall License Model"
+        }
+      },
+      "virtualNetworkName": {
+        "type": "string",
+        "defaultValue": "vn-security",
+        "metadata": {
+          "description": "Name of the EXISTING Virtual Network (VNET)"
+        }
+      },
+      "virtualNetworkAddressPrefixes": {
+      "type": "array",
+      "defaultValue": "[array('10.0.0.0/16')]",
+      "metadata": {
+      "description": "Virtual network address CIDR"
+        }
+      },
+      "mgmtSubnetName": {
+        "type": "string",
+        "defaultValue": "sn-mgmt",
+        "metadata": {
+          "description": "Subnet for Management"
+        }
+      },
+      "mgmtSubnetNSG": {
+        "type": "string",
+        "defaultValue": "nsg-sn-pan-mgmt",
+        "metadata": {
+          "description": "Name for Management Subnet NSG"
+        }
+      },
+        "srcIPinboundNSGmgmt": {
+        "type": "string",
+        "metadata": {
+        "description": "Your source public IP address. Added to the management subnet NSG"
+          },
+          "defaultValue": "0.0.0.0/0"
+      },
+      "mgmtSubnetUDR": {
+        "type": "string",
+        "defaultValue": "rt-sn-pan-mgmt",
+        "metadata": {
+          "description": "Name for Management Subnet Route Table"
+        }
+      },
+      "externalSubnetName": {
+        "type": "string",
+        "defaultValue": "sn-external",
+        "metadata": {
+          "description": "Subnet for External"
+        }
+      },
+      "externalSubnetNSG": {
+        "type": "string",
+        "defaultValue": "nsg-sn-pan-external",
+        "metadata": {
+          "description": "Name for External Subnet NSG"
+        }
+      },
+      "externalSubnetUDR": {
+      "type": "string",
+      "defaultValue": "rt-sn-pan-external",
+      "metadata": {
+         "description": "Name for Management Subnet Route Table"
+        }
+      },
+      "internalSubnetName": {
+        "type": "string",
+        "defaultValue": "sn-internal",
+        "metadata": {
+          "description": "Subnet for Internal"
+        }
+      },
+      "internalSubnetNSG": {
+        "type": "string",
+        "defaultValue": "nsg-sn-pan-internal",
+        "metadata": {
+          "description": "Name for Internal Subnet NSG"
+        }
+      },
+        "internalSubnetUDR": {
+        "type": "string",
+        "defaultValue": "rt-sn-pan-internal",
+        "metadata": {
+          "description": "Name for Management Subnet Route Table"
+        }
+      },
+      "mgmtSubnetPrefix": {
+        "type": "string",
+        "defaultValue": "10.0.0.64/28",
+        "metadata": {
+          "description": "Mgmt subnet CIDR"
+        }
+      },
+      "externalSubnetPrefix": {
+        "type": "string",
+        "defaultValue": "10.0.0.16/28",
+        "metadata": {
+          "description": "External subnet CIDR"
+        }
+      },
+      "internalSubnetPrefix": {
+        "type": "string",
+        "defaultValue": "10.0.0.0/28",
+        "metadata": {
+          "description": "EXISTING internal subnet CIDR"
+        }
+      },
+      "internalLbIpAddress": {
+        "type": "string",
+        "defaultValue": "10.0.0.4",
+        "metadata": {
+          "description": "Static IP-address for the internal subnet loadbalancer."
+        }
+      },
+      "mgmtSubnetIpAddresses": {
+        "type": "array",
+        "defaultValue": ["10.0.0.68", "10.0.0.69"],
+        "metadata": {
+          "description": "Static IP-addresses for the FW in the management subnet (formatted as an array)."
+        }
+      },
+      "externalSubnetIpAddresses": {
+        "type": "array",
+        "defaultValue": ["10.0.0.20", "10.0.0.21"],
+        "metadata": {
+          "description": "Static IP-addresses for the FW in the external subnet (formatted as an array)."
+        }
+      },
+      "internalSubnetIpAddresses": {
+        "type": "array",
+        "defaultValue": ["10.0.0.6", "10.0.0.7"],
+        "metadata": {
+          "description": "Static IP-addresses for the FW in the internal subnet (formatted as an array)."
+        }
+      },
+      "adminUsername": {
+        "type": "string",
+        "defaultValue": "panadmin",
+        "metadata": {
+          "description": "Username of the administrator account of VM-Series"
+        }
+      },
+      "adminPassword": {
+        "type": "securestring",
+        "defaultValue": "",
+        "metadata": {
+          "description": "Password for the administrator account of VM-Series"
+        }
+      }
+    },
+    "variables": {
+      
+      "vmNamePrefix": "[toUpper(parameters('vmNamePrefix'))]",
+      "vmImagePublisher": "paloaltonetworks",
+      "vmImageOffer": "vmseries1",
+      "asName": "[concat('as','-',variables('vmNamePrefix'))]",
+      "asId": "[resourceId('Microsoft.Compute/availabilitySets',variables('asName'))]",
+
+      "vnetId": "[resourceId('Microsoft.Network/virtualNetworks',parameters('virtualNetworkName'))]",
+      "virtualNetworkAddressPrefix": "[parameters('virtualNetworkAddressPrefixes')[0]]",
+      "mgmtSubnetRef": "[concat(variables('vnetId'),'/subnets/',parameters('mgmtSubnetName'))]",
+      "externalSubnetRef": "[concat(variables('vnetId'),'/subnets/',parameters('externalSubnetName'))]",
+      "internalSubnetRef": "[concat(variables('vnetId'),'/subnets/',parameters('internalSubnetName'))]",
+      "mgmtNSGname": "[parameters('mgmtSubnetNSG')]",
+      "srcIPinboundNSGmgmt": "[parameters('srcIPinboundNSGmgmt')]",
+      "externalNSGname": "[parameters('externalSubnetNSG')]",
+      "internalNSGname": "[parameters('internalSubnetNSG')]",
+      "mgmtUDRname": "[parameters('mgmtSubnetUDR')]",
+      "externalUDRname": "[parameters('externalSubnetUDR')]",
+      "internalUDRname": "[parameters('internalSubnetUDR')]",
+
+      "lbFeName": "[concat('Frontend','-',variables('vmNamePrefix'))]",
+      "lbBeName": "[concat('Backend','-',variables('vmNamePrefix'))]",
+      "lbProbeName": "[concat('Probe','-',variables('vmNamePrefix'))]",
+
+      "elbName": "[concat('lb','-',variables('vmNamePrefix'),'-','01')]",
+      "elbId": "[resourceId('Microsoft.Network/loadBalancers',variables('elbName'))]",
+      "elbPipName": "[concat('pip','-',variables('elbName'),'-','01')]",
+      "elbPipId": "[resourceId('Microsoft.Network/publicIpAddresses',variables('elbPipName'))]",
+      "elbBeRef": "[concat(variables('elbId'),'/backendAddressPools/',variables('lbBeName'))]",
+
+      "ilbName": "[concat('lb','-',variables('vmNamePrefix'),'-','02')]",
+      "ilbId": "[resourceId('Microsoft.Network/loadBalancers',variables('ilbName'))]",
+      "ilbInternalIp": "[parameters('internalLbIpAddress')]",
+      "ilbInternalFeName": "[concat('Frontend','-',variables('vmNamePrefix'),'-',parameters('internalSubnetName'))]",
+      "ilbInternalBeName": "[concat('Backend','-',variables('vmNamePrefix'),'-',parameters('internalSubnetName'))]",
+      "ilbInternalBeRef": "[concat(variables('ilbId'),'/backendAddressPools/',variables('ilbInternalBeName'))]",
+
+      "subnets": [
+        {
+          "name": "[parameters('mgmtSubnetName')]",
+          "properties": {
+            "addressPrefix": "[parameters('mgmtSubnetPrefix')]",
+            "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('mgmtNSGname'))]"
+            },
+            "routeTable": {
+                "id": "[resourceId('Microsoft.Network/routeTables', variables('mgmtUDRname'))]"
+            }
+          }
+        },
+        {
+          "name": "[parameters('externalSubnetName')]",
+          "properties": {
+            "addressPrefix": "[parameters('externalSubnetPrefix')]",
+            "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('externalNSGname'))]"
+            },
+            "routeTable": {
+                "id": "[resourceId('Microsoft.Network/routeTables', variables('externalUDRname'))]"
+            }
+          }
+        },
+        {
+          "name": "[parameters('internalSubnetName')]",
+          "properties": {
+            "addressPrefix": "[parameters('internalSubnetPrefix')]",
+            "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('internalNSGname'))]"
+            },
+            "routeTable": {
+                "id": "[resourceId('Microsoft.Network/routeTables', variables('internalUDRname'))]"
+            }
+          }
+        }
+      ],
+
+      "copy": [
+        {
+          "name": "vmNames",
+          "count": "[parameters('vmInstances')]",
+          "input": {
+            "name": "[concat(variables('vmNamePrefix'), padLeft(copyIndex('vmNames', 1), 2, '0'))]"
+          }
+        },
+        {
+          "name": "vmPipNames",
+          "count": "[parameters('vmInstances')]",
+          "input": {
+            "name": "[concat('pip','-',variables('vmNames')[copyIndex('vmPipNames')].name,'-',padLeft('1', 2, '0'))]"
+          }
+        },
+        {
+          "name": "vmMgmtNics",
+          "count": "[parameters('vmInstances')]",
+          "input": {
+            "name": "[concat('nic','-',variables('vmNames')[copyIndex('vmMgmtNics')].name,'-',padLeft('1', 2, '0'))]",
+            "privateIpAddress": "[parameters('mgmtSubnetIpAddresses')[copyIndex('vmMgmtNics')]]"
+          }
+        },
+        {
+          "name": "vmExternalNics",
+          "count": "[parameters('vmInstances')]",
+          "input": {
+            "name": "[concat('nic','-',variables('vmNames')[copyIndex('vmExternalNics')].name,'-',padLeft('2', 2, '0'))]",
+            "privateIpAddress": "[parameters('externalSubnetIpAddresses')[copyIndex('vmExternalNics')]]"
+          }
+        },
+        {
+          "name": "vmInternalNics",
+          "count": "[parameters('vmInstances')]",
+          "input": {
+            "name": "[concat('nic','-',variables('vmNames')[copyIndex('vmInternalNics')].name,'-',padLeft('3', 2, '0'))]",
+            "privateIpAddress": "[parameters('internalSubnetIpAddresses')[copyIndex('vmInternalNics')]]"
+          }
+        }
+      ]
+    },
+    "resources": [
+      {
+        "name": "[variables('mgmtNSGname')]",
+        "type": "Microsoft.Network/networkSecurityGroups",
+        "apiVersion": "2017-10-01",
+        "location": "[resourceGroup().location]",
+        "properties": {
+            "securityRules": [
+                {
+                  "name": "Allow-Outside-From-IP",
+                  "properties": {
+                      "description": "Rule",
+                      "protocol": "*",
+                      "sourcePortRange": "*",
+                      "destinationPortRange": "*",
+                      "sourceAddressPrefix": "[variables('srcIPinboundNSGmgmt')]",
+                      "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound"
+                    }
+                  }
+                ]
+              }
+      },
+      {
+        "name": "[variables('mgmtUDRname')]",
+        "type": "Microsoft.Network/routeTables",
+        "apiVersion": "2020-04-01",
+        "location": "[resourceGroup().location]",
+          "dependsOn": [],
+          "properties": {
+          "disableBgpRoutePropagation": false
+              }
+      },
+      {
+        "name": "[variables('externalNSGname')]",
+        "type": "Microsoft.Network/networkSecurityGroups",
+        "apiVersion": "2017-10-01",
+        "location": "[resourceGroup().location]",
+        "properties": {
+            "securityRules": []
+              }
+      },
+      {
+        "name": "[variables('externalUDRname')]",
+        "type": "Microsoft.Network/routeTables",
+        "apiVersion": "2020-04-01",
+        "location": "[resourceGroup().location]",
+          "dependsOn": [],
+          "properties": {
+          "disableBgpRoutePropagation": false
+              }
+      },
+          {
+        "name": "[variables('internalNSGname')]",
+        "type": "Microsoft.Network/networkSecurityGroups",
+        "apiVersion": "2017-10-01",
+        "location": "[resourceGroup().location]",
+        "properties": {
+            "securityRules": []
+              }
+      },
+      {
+        "name": "[variables('internalUDRname')]",
+        "type": "Microsoft.Network/routeTables",
+        "apiVersion": "2020-04-01",
+        "location": "[resourceGroup().location]",
+          "dependsOn": [],
+          "properties": {
+          "disableBgpRoutePropagation": false
+              }
+      },
+      {
+        "name": "[parameters('virtualNetworkName')]",
+        "type": "Microsoft.Network/virtualNetworks",
+        "apiVersion": "2017-10-01",
+        "dependsOn": [
+          "[resourceId('Microsoft.Network/networkSecurityGroups', variables('mgmtNSGName'))]",
+          "[resourceId('Microsoft.Network/networkSecurityGroups', variables('externalNSGName'))]",
+          "[resourceId('Microsoft.Network/networkSecurityGroups', variables('internalNSGName'))]"
+          ],
+        "location": "[resourceGroup().location]",
+        "properties": {
+          "addressSpace": {
+              "addressPrefixes": [
+                  "[variables('virtualNetworkAddressPrefix')]"
+                  ]
+          },
+            "subnets": "[variables('subnets')]"
+        }
+      },
+      {
+        "comments": "Firewall public IP-addresses.",
+        "apiVersion": "2018-08-01",
+        "type": "Microsoft.Network/publicIPAddresses",
+        "name": "[variables('vmPipNames')[copyIndex('vmPips')].name]",
+        "location": "[resourceGroup().location]",
+        "copy": {
+          "name": "vmPips",
+          "count": "[parameters('vmInstances')]"
+        },
+        "sku": { "name": "Standard" },
+        "properties": { "publicIPAllocationMethod": "Static" }
+      },
+      {
+        "comments": "External loadbalancer public IP-address.",
+        "apiVersion": "2018-08-01",
+        "type": "Microsoft.Network/publicIPAddresses",
+        "name": "[variables('elbPipName')]",
+        "location": "[resourceGroup().location]",
+        "sku": { "name": "Standard" },
+        "properties": { "publicIPAllocationMethod": "Static" }
+      },
+      {
+        "comments": "External firewall loadbalancer.",
+        "apiVersion": "2018-08-01",
+        "type": "Microsoft.Network/loadBalancers",
+        "name": "[variables('elbName')]",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+          "[variables('elbPipId')]",
+          "[variables('vnetId')]"
+        ],
+        "sku": { "name": "Standard" },
+        "properties": {
+          "frontendIPConfigurations": [
+            {
+              "name": "[variables('lbFeName')]",
+              "properties": {
+                "publicIPAddress": { "id": "[variables('elbPipId')]" }
+              }
+            }
+          ],
+          "backendAddressPools": [{ "name": "[variables('lbBeName')]" }],
+          "probes": [
+            {
+              "name": "[variables('lbProbeName')]",
+              "properties": {
+                "protocol": "Tcp",
+                "port": 443,
+                "intervalInSeconds": 5,
+                "numberOfProbes": 2
+              }
+            }
+          ]
+        }
+      },
+      {
+        "comments": "Internal loadbalancer.",
+        "apiVersion": "2018-08-01",
+        "type": "Microsoft.Network/loadBalancers",
+        "name": "[variables('ilbName')]",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+          "[variables('vnetId')]"
+        ],
+        "sku": { "name": "Standard" },
+        "properties": {
+          "frontendIPConfigurations": [
+            {
+              "name": "[variables('ilbInternalFeName')]",
+              "properties": {
+                "privateIPAddress": "[variables('ilbInternalIp')]",
+                "privateIPAllocationMethod": "Static",
+                "subnet": {
+                  "id": "[variables('internalSubnetRef')]"
+                }
+              }
+            }
+          ],
+          "backendAddressPools": [
+            { "name": "[variables('ilbInternalBeName')]" }
+          ],
+          "loadBalancingRules": [
+            {
+              "name": "[concat(variables('vmNamePrefix'),'-','Internal')]",
+              "properties": {
+                "frontendIPConfiguration": {
+                  "id": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/frontendIpConfigurations/',variables('ilbInternalFeName'))]"
+                },
+                "backendAddressPool": {
+                  "id": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/backendAddressPools/',variables('ilbInternalBeName'))]"
+                },
+                "probe": {
+                  "id": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/probes/',variables('lbProbeName'))]"
+                },
+                "protocol": "All",
+                "frontendPort": 0,
+                "backendPort": 0,
+                "enableFloatingIP": true,
+                "idleTimeoutInMinutes": 15
+              }
+            }
+          ],
+          "probes": [
+            {
+              "name": "[variables('lbProbeName')]",
+              "properties": {
+                "protocol": "Tcp",
+                "port": 443,
+                "intervalInSeconds": 5,
+                "numberOfProbes": 2
+              }
+            }
+          ] 
+        }
+      },
+      {
+        "comments": "Management subnet NICs.",
+        "apiVersion": "2018-08-01",
+        "name": "[variables('vmMgmtNics')[copyIndex('mgmtNics')].name]",
+        "type": "Microsoft.Network/networkInterfaces",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+          "[variables('vnetId')]"
+        ],
+        "copy": {
+          "name": "mgmtNics",
+          "count": "[parameters('vmInstances')]"
+        },
+        "properties": {
+          "ipConfigurations": [
+            {
+              "name": "ipconfig1",
+              "properties": {
+                "privateIpAllocationMethod": "Static",
+                "privateIpAddress": "[variables('vmMgmtNics')[copyIndex('mgmtNics')].privateIpAddress]",
+                "subnet": {
+                  "id": "[variables('mgmtSubnetRef')]"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "comments": "External subnet NICs.",
+        "apiVersion": "2018-08-01",
+        "name": "[variables('vmExternalNics')[copyIndex('externalNics')].name]",
+        "type": "Microsoft.Network/networkInterfaces",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+          "vmPips",
+          "[variables('elbName')]",
+          "[variables('vnetId')]"
+        ],
+        "copy": {
+          "name": "externalNics",
+          "count": "[parameters('vmInstances')]"
+        },
+        "properties": {
+          "enableAcceleratedNetworking": true,
+          "enableIPForwarding": true,
+          "ipConfigurations": [
+            {
+              "name": "ipconfig1",
+              "properties": {
+                "privateIPAllocationMethod": "Static",
+                "privateIPAddress": "[variables('vmExternalNics')[copyIndex('externalNics')].privateIpAddress]",
+                "publicIPAddress": {
+                  "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('vmPipNames')[copyIndex('externalNics')].name)]"
+                },
+                "subnet": {
+                  "id": "[variables('externalSubnetRef')]"
+                },
+                "loadBalancerBackendAddressPools": [
+                  {
+                    "id": "[variables('elbBeRef')]"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "comments": "Internal subnet NICs.",
+        "apiVersion": "2018-08-01",
+        "name": "[variables('vmInternalNics')[copyIndex('internalNics')].name]",
+        "type": "Microsoft.Network/networkInterfaces",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+          "[variables('ilbName')]",
+          "[variables('vnetId')]"
+        ],
+        "copy": {
+          "name": "internalNics",
+          "count": "[parameters('vmInstances')]"
+        },
+        "properties": {
+          "enableAcceleratedNetworking": true,
+          "enableIPForwarding": true,
+          "ipConfigurations": [
+            {
+              "name": "ipconfig1",
+              "properties": {
+                "privateIPAllocationMethod": "Static",
+                "privateIPAddress": "[variables('vmInternalNics')[copyIndex('internalNics')].privateIpAddress]",
+                "subnet": {
+                  "id": "[variables('internalSubnetRef')]"
+                },
+                "loadBalancerBackendAddressPools": [
+                  {
+                    "id": "[variables('ilbInternalBeRef')]"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "comments": "Firewall availability set.",
+        "apiVersion": "2018-06-01",
+        "type": "Microsoft.Compute/availabilitySets",
+        "name": "[variables('asName')]",
+        "location": "[resourceGroup().location]",
+        "sku": { "name": "Aligned" },
+        "properties": {
+          "platformFaultDomainCount": 2,
+          "platformUpdateDomainCount": 2
+        }
+      },
+      {
+        "comments": "Deploys the firewalls.",
+        "apiVersion": "2018-06-01",
+        "type": "Microsoft.Compute/virtualMachines",
+        "name": "[variables('vmNames')[copyIndex('fws')].name]",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+          "mgmtNics",
+          "externalNics",
+          "internalNics",
+          "[variables('asId')]"
+        ],
+        "copy": {
+          "name": "fws",
+          "count": "[parameters('vmInstances')]"
+        },
+        "plan": {
+          "name": "[parameters('vmImageSku')]",
+          "product": "[variables('vmImageOffer')]",
+          "publisher": "[variables('vmImagePublisher')]"
+        },
+        "properties": {
+          "availabilitySet": {
+            "id": "[resourceId('Microsoft.Compute/availabilitySets', variables('asName'))]"
+          },
+          "hardwareProfile": {
+            "vmSize": "[parameters('vmSize')]"
+          },
+          "osProfile": {
+            "computerName": "[variables('vmNames')[copyIndex('fws')].name]",
+            "adminUsername": "[parameters('adminUsername')]",
+            "adminPassword": "[parameters('adminPassword')]"
+          },
+          "storageProfile": {
+            "imageReference": {
+              "publisher": "[variables('vmImagePublisher')]",
+              "offer": "[variables('vmImageOffer')]",
+              "sku": "[parameters('vmImageSku')]",
+              "version": "[parameters('vmImageVersion')]"
+            },
+            "osDisk": {
+              "name": "[concat('osdisk','-',variables('vmNames')[copyIndex('fws')].name)]",
+              "caching": "ReadWrite",
+              "createOption": "FromImage"
+            }
+          },
+          "networkProfile": {
+            "networkInterfaces": [
+              {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('vmMgmtNics')[copyIndex('fws')].name)]",
+                "properties": {
+                  "primary": true
+                }
+              },
+              {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('vmExternalNics')[copyIndex('fws')].name)]",
+                "properties": {
+                  "primary": false
+                }
+              },
+              {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('vmInternalNics')[copyIndex('fws')].name)]",
+                "properties": {
+                  "primary": false
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
