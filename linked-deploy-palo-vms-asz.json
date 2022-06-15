@@ -1,0 +1,312 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "vmNamePrefix": {
+        "type": "string",
+        "defaultValue": "panfw",
+        "metadata": { 
+          "description": "Name of VM-Series FW in the Azure portal."
+        }
+      },
+      "vmInstances": {
+      "type": "int",
+      "defaultValue": 2,
+      "minValue": 1,
+      "metadata": {
+        "description": "Number of firewall instances to deploy."
+        }
+      },
+      "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D3_v2",
+      "allowedValues": [
+          "Standard_D3",
+          "Standard_D4",
+          "Standard_D3_v2",
+          "Standard_D4_v2",
+          "Standard_A4",
+          "Standard_DS3_v2",
+          "Standard_DS4_v2"
+        ],
+        "metadata": {
+          "description": "Azure VM size for VM-Series"
+        }
+      },
+      "vmImageVersion": {
+        "type": "string",
+        "defaultValue": "latest",
+        "allowedValues": [
+          "9.0.9",
+          "latest"
+        ],
+        "metadata": {
+          "description": "PAN OS Version | az vm image list -l westeurope -p paloaltonetworks --all"
+        }
+      },
+      "vmImageSku": {
+        "type": "string",
+        "defaultValue": "byol",
+        "allowedValues": [
+          "byol",
+          "bundle1",
+          "bundle2"
+        ],
+        "metadata": {
+          "description": "Firewall License Model"
+        }
+      },
+      "storageAccountName": {
+        "type": "string",
+        "defaultValue": "panbootdiag",
+        "metadata": {
+          "description": "Name of storage acount for boot diagnostics"
+        }
+      },
+      "storageAccountType": {
+        "type": "string",
+        "defaultValue": "Standard_LRS",
+        "allowedValues": [
+          "Standard_LRS",
+          "Standard_GRS",
+          "Standard_RAGRS",
+          "Standard_ZRS",
+          "Premium_LRS"
+        ],
+        "metadata": {
+          "description": "Storage Account type"
+        } 
+      },
+      "mgmtSubnetName": {
+        "type": "string",
+        "defaultValue": "sn-mgmt",
+        "metadata": {
+          "description": "Subnet for Management"
+        }
+      },
+      "externalSubnetName": {
+        "type": "string",
+        "defaultValue": "sn-external",
+        "metadata": {
+          "description": "Subnet for External"
+        }
+      },
+      "internalSubnetName": {
+        "type": "string",
+        "defaultValue": "sn-internal",
+        "metadata": {
+          "description": "Subnet for Internal"
+        }
+      },
+      "mgmtSubnetPrefix": {
+        "type": "string",
+        "defaultValue": "10.0.0.64/28",
+        "metadata": {
+          "description": "Mgmt subnet CIDR"
+        }
+      },
+      "externalSubnetPrefix": {
+        "type": "string",
+        "defaultValue": "10.0.0.16/28",
+        "metadata": {
+          "description": "External subnet CIDR"
+        }
+      },
+      "internalSubnetPrefix": {
+        "type": "string",
+        "defaultValue": "10.0.0.0/28",
+        "metadata": {
+          "description": "EXISTING internal subnet CIDR"
+        }
+      },
+      "mgmtSubnetIpAddresses": {
+        "type": "array",
+        "defaultValue": ["10.0.0.68", "10.0.0.69"],
+        "metadata": {
+          "description": "Static IP-addresses for the FW in the management subnet (formatted as an array)."
+        }
+      },
+      "externalSubnetIpAddresses": {
+        "type": "array",
+        "defaultValue": ["10.0.0.20", "10.0.0.21"],
+        "metadata": {
+          "description": "Static IP-addresses for the FW in the external subnet (formatted as an array)."
+        }
+      },
+      "internalSubnetIpAddresses": {
+        "type": "array",
+        "defaultValue": ["10.0.0.6", "10.0.0.7"],
+        "metadata": {
+          "description": "Static IP-addresses for the FW in the internal subnet (formatted as an array)."
+        }
+      },
+      "internalLbIpAddress": {
+        "type": "string",
+        "defaultValue": "10.0.0.4",
+        "metadata": {
+          "description": "Static IP-address for the internal subnet loadbalancer."
+        }
+      },
+      "availabilitySetName": {
+        "type": "string",
+        "defaultValue": "None"
+      },
+      "availabilitySetPlatformFaultDomainCount": {
+        "type": "string",
+        "defaultValue": "2"
+      },
+      "availabilitySetPlatformUpdateDomainCount": {
+        "type": "string",
+        "defaultValue": "2"
+      },
+      "adminUsername": {
+        "type": "string",
+        "defaultValue": "panadmin",
+        "metadata": {
+          "description": "Username of the administrator account of VM-Series"
+        }
+      },
+      "vaultName": {
+        "type": "string",
+        "metadata": {
+          "description": "The name of the keyvault that contains the secret."
+        }
+      },
+      "vaultSecretName": {
+        "type": "string",
+        "metadata": {
+          "description": "The name of the secret."
+        }
+      },
+      "vaultResourceGroupName": {
+        "type": "string",
+        "metadata": {
+          "description": "The name of the resource group that contains the keyvault."
+        }
+      },
+      "adminPassword": {
+        "type": "securestring",
+        "defaultValue": "",
+        "metadata": {
+          "description": "Password for the administrator account of VM-Series"
+        }
+      }
+    },
+    "variables": {
+      
+      "resourceGroupName":  "[resourceGroup().name]",
+      "vmNamePrefix": "[toUpper(parameters('vmNamePrefix'))]",
+      "vmImagePublisher": "paloaltonetworks",
+      "vmImageOffer": "vmseries1",
+
+      "asName": "[concat(variables('resourceGroupName'))]",
+      "asId": "[resourceId('Microsoft.Compute/availabilitySets',variables('asName'))]",
+
+      "copy": [
+        {
+          "name": "vmNames",
+          "count": "[parameters('vmInstances')]",
+          "input": {
+            "name": "[concat(variables('vmNamePrefix'), padLeft(copyIndex('vmNames', 1), 4, '0'))]"
+          }
+        },
+        {
+          "name": "vmMgmtNics",
+          "count": "[parameters('vmInstances')]",
+          "input": {
+            "name": "[concat(variables('vmNames')[copyIndex('vmMgmtNics')].name, 'Mgmt')]",
+            "privateIpAddress": "[parameters('mgmtSubnetIpAddresses')[copyIndex('vmMgmtNics')]]"
+          }
+        },
+        {
+          "name": "vmExternalNics",
+          "count": "[parameters('vmInstances')]",
+          "input": {
+            "name": "[concat(variables('vmNames')[copyIndex('vmExternalNics')].name, 'Ext')]",
+            "privateIpAddress": "[parameters('externalSubnetIpAddresses')[copyIndex('vmExternalNics')]]"
+          }
+        },
+        {
+          "name": "vmInternalNics",
+          "count": "[parameters('vmInstances')]",
+          "input": {
+            "name": "[concat(variables('vmNames')[copyIndex('vmInternalNics')].name, 'Int')]",
+            "privateIpAddress": "[parameters('internalSubnetIpAddresses')[copyIndex('vmInternalNics')]]"
+          }
+        }
+      ]
+    },
+    "resources": [
+      {
+        "comments": "PaloDeploy",
+        "apiVersion": "2018-06-01",
+        "type": "Microsoft.Compute/virtualMachines",
+        "name": "[variables('vmNames')[copyIndex('fws')].name]",
+        "location": "[resourceGroup().location]",
+        "copy": {
+          "name": "fws",
+          "count": "[parameters('vmInstances')]",
+          "mode": "serial"
+        },
+        "plan": {
+          "name": "[parameters('vmImageSku')]",
+          "product": "[variables('vmImageOffer')]",
+          "publisher": "[variables('vmImagePublisher')]"
+        },
+        "properties": {
+          "availabilitySet": {
+            "id": "[if(equals(parameters('availabilitySetName'), 'None'), json('null'), variables('availabilitySet'))]"
+          },
+          "hardwareProfile": {
+            "vmSize": "[parameters('vmSize')]"
+          },
+          "osProfile": {
+            "computerName": "[variables('vmNames')[copyIndex('fws')].name]",
+            "adminUsername": "[parameters('adminUsername')]",
+            "adminPassword": "[parameters('adminPassword')]"
+          },
+          "storageProfile": {
+            "imageReference": {
+              "publisher": "[variables('vmImagePublisher')]",
+              "offer": "[variables('vmImageOffer')]",
+              "sku": "[parameters('vmImageSku')]",
+              "version": "[parameters('vmImageVersion')]"
+            },
+            "osDisk": {
+              "name": "[concat(variables('vmNames')[copyIndex('fws')].name,'_','OsDisk')]",
+              "caching": "ReadWrite",
+              "createOption": "FromImage"
+            }
+          },
+            "diagnosticsProfile": {
+              "bootDiagnostics": {
+                "enabled": "true",
+                "storageUri": "[concat('https://', parameters('StorageAccountName'), '.blob.core.windows.net')]"
+              }
+            },
+          "networkProfile": {
+            "networkInterfaces": [
+              {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('vmMgmtNics')[copyIndex('fws')].name)]",
+                "properties": {
+                  "primary": true
+                }
+              },
+              {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('vmExternalNics')[copyIndex('fws')].name)]",
+                "properties": {
+                  "primary": false
+                }
+              },
+              {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('vmInternalNics')[copyIndex('fws')].name)]",
+                "properties": {
+                  "primary": false
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
