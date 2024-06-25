@@ -6,7 +6,7 @@
         "type": "string",
         "defaultValue": "pan-fw001",
         "metadata": { 
-          "description": "Name of VM-Series FW in the Azure portal."
+          "description": "Name of VM-Series FW in the Azure portalss."
         }
       },
       "vmSize": {
